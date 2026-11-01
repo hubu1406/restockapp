@@ -286,6 +286,60 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    if (action === "import_waitlist") {
+      const { subscriptions: itemsToImport } = body;
+      if (!Array.isArray(itemsToImport) || itemsToImport.length === 0) {
+        return NextResponse.json({ error: "No items to import" }, { status: 400 });
+      }
+
+      let importedCount = 0;
+      let skippedDuplicate = 0;
+
+      for (const item of itemsToImport) {
+        const normalizedEmail = (item.email || "").toLowerCase().trim();
+        if (!normalizedEmail || !item.variantId) continue;
+
+        const existing = await prisma.waitlistSubscription.findFirst({
+          where: {
+            shopId: shop.id,
+            variantId: String(item.variantId),
+            email: normalizedEmail,
+          },
+        });
+
+        if (!existing) {
+          await prisma.waitlistSubscription.create({
+            data: {
+              shopId: shop.id,
+              productId: String(item.productId),
+              variantId: String(item.variantId),
+              productTitle: item.productTitle,
+              variantTitle: item.variantTitle || "Default Title",
+              productHandle: item.productHandle || "",
+              productUrl: item.productUrl || "",
+              imageUrl: item.imageUrl || "",
+              price: String(item.price || "0.00"),
+              sku: item.sku || null,
+              email: normalizedEmail,
+              acceptsMarketing: Boolean(item.acceptsMarketing),
+              status: "PENDING",
+              createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+            },
+          });
+          importedCount++;
+        } else {
+          skippedDuplicate++;
+        }
+      }
+
+      return NextResponse.json({
+        ok: true,
+        importedCount,
+        skippedDuplicate,
+        totalSubmitted: itemsToImport.length,
+      });
+    }
+
     if (action === "clear_mock_data") {
       const shopDomain =
         req.headers.get("x-shop-domain") ||
