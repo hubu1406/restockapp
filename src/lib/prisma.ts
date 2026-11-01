@@ -1,29 +1,11 @@
 import { PrismaClient, Shop } from "@prisma/client";
-import fs from "fs";
-import path from "path";
 
-function resolveRuntimeDatabaseUrl(): string {
-  const configured = process.env.DATABASE_URL;
-
-  // On Vercel serverless without an external database file in /tmp, use /tmp/dev.db
-  if (process.env.VERCEL) {
-    const tmpDbPath = "/tmp/dev.db";
-    if (!fs.existsSync(tmpDbPath)) {
-      const candidatePaths = [
-        path.join(process.cwd(), "prisma", "template.db"),
-        path.join(process.cwd(), "template.db"),
-      ];
-      for (const srcPath of candidatePaths) {
-        if (fs.existsSync(srcPath)) {
-          fs.copyFileSync(srcPath, tmpDbPath);
-          break;
-        }
-      }
-    }
-    return `file:${tmpDbPath}`;
-  }
-
-  return configured || "file:./dev.db";
+function resolveRuntimeDatabaseUrl(): string | undefined {
+  return (
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.DATABASE_URL
+  );
 }
 
 const globalForPrisma = globalThis as unknown as {
@@ -33,11 +15,13 @@ const globalForPrisma = globalThis as unknown as {
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    datasources: {
-      db: {
-        url: resolveRuntimeDatabaseUrl(),
-      },
-    },
+    datasources: resolveRuntimeDatabaseUrl()
+      ? {
+          db: {
+            url: resolveRuntimeDatabaseUrl(),
+          },
+        }
+      : undefined,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 
