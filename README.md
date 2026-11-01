@@ -2,6 +2,10 @@
 
 A lightweight, high-performance Back in Stock (Restock Alert) notification system for Shopify stores, powered by Next.js, Prisma, and Resend.
 
+- **Sender**: PakkLett (`noreply@pakklett.no`)
+- **Language**: Norwegian & Multi-language configurable
+- **Target Store**: `muskox.myshopify.com`
+
 ## Features
 - **Instant Email Alerts**: Dispatches automated back-in-stock notifications via Resend API when products are restocked.
 - **Shopify Venture (1.0) & 2.0 Compatible**: Custom storefront widget designed specifically for Shopify themes (including legacy themes with variant select observers).
