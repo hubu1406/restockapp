@@ -5,6 +5,10 @@ export const metadata: Metadata = {
   title: "RestockPulse — Shopify Back In Stock & Restock Alerts",
   description:
     "Automated Back in Stock waitlist, Shopify inventory webhook listener, and Resend batch email alerts.",
+  icons: {
+    icon: "/icon",
+    apple: "/apple-icon",
+  },
 };
 
 export default function RootLayout({
