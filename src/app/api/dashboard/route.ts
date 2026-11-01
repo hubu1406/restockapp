@@ -1,9 +1,55 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrCreateShop, prisma } from "@/lib/prisma";
 import { dispatchBackInStockNotifications, renderBackInStockEmail } from "@/lib/email";
+import { verifyShopifySessionToken } from "@/lib/shopify-session-token";
+
+function authorizeRequest(req: NextRequest) {
+  // If SHOPIFY_CLIENT_SECRET is configured, enforce strict Shopify Session Token verification
+  if (process.env.SHOPIFY_CLIENT_SECRET) {
+    const authHeader = req.headers.get("authorization") || "";
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+
+    if (!token) {
+      return {
+        authorized: false,
+        response: NextResponse.json(
+          {
+            error:
+              "Unauthorized: Missing Shopify session token. Please open RestockPulse from your Shopify Admin.",
+          },
+          { status: 401 }
+        ),
+      };
+    }
+
+    const verification = verifyShopifySessionToken(token);
+    if (!verification.valid) {
+      return {
+        authorized: false,
+        response: NextResponse.json(
+          {
+            error: `Unauthorized: ${
+              verification.error || "Invalid Shopify session token"
+            }. Please access via Shopify Admin.`,
+          },
+          { status: 401 }
+        ),
+      };
+    }
+
+    return { authorized: true, payload: verification.payload };
+  }
+
+  return { authorized: true };
+}
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = authorizeRequest(req);
+    if (!auth.authorized) {
+      return auth.response;
+    }
+
     const shopDomain = req.nextUrl.searchParams.get("shop") || undefined;
     const shop = await getOrCreateShop(shopDomain);
 
@@ -147,6 +193,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = authorizeRequest(req);
+    if (!auth.authorized) {
+      return auth.response;
+    }
+
     const body = await req.json();
     const { action, shopDomain } = body;
     const shop = await getOrCreateShop(shopDomain);

@@ -13,6 +13,7 @@ import {
   Inbox,
   Layers,
   Loader2,
+  Lock,
   Mail,
   PackageCheck,
   Palette,
@@ -21,6 +22,7 @@ import {
   Search,
   Send,
   Settings,
+  ShieldAlert,
   ShoppingBag,
   Sparkles,
   Trash2,
@@ -170,19 +172,53 @@ export default function BackInStockDashboard() {
   // Email HTML Modal inspection state
   const [inspectedLog, setInspectedLog] = useState<NotificationLogItem | null>(null);
 
+  // Shopify App Bridge Auth State
+  const [unauthorized, setUnauthorized] = useState(false);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    if (typeof window !== "undefined") {
+      const anyWindow = window as unknown as { shopify?: { idToken?: () => Promise<string> } };
+      if (anyWindow.shopify?.idToken) {
+        try {
+          const token = await anyWindow.shopify.idToken();
+          if (token) {
+            return { Authorization: `Bearer ${token}` };
+          }
+        } catch (err) {
+          console.warn("Shopify App Bridge idToken retrieval error:", err);
+        }
+      }
+    }
+    return {};
+  };
+
   const fetchDashboard = useCallback(async () => {
     try {
-      const res = await fetch("/api/dashboard");
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch("/api/dashboard", {
+        headers: { ...authHeaders },
+      });
+
+      if (res.status === 401) {
+        setUnauthorized(true);
+        return;
+      }
+
       const json = await res.json();
       if (res.ok) {
         setData(json);
         setFormSettings((prev) => prev ?? json.shop);
+        setUnauthorized(false);
+      } else {
+        setUnauthorized(true);
       }
+    } catch (e) {
+      console.error("Dashboard fetch failed:", e);
     } finally {
       setLoading(false);
     }
@@ -195,9 +231,10 @@ export default function BackInStockDashboard() {
   const handleSimulateRestock = async (variantId: string, productTitle: string) => {
     setRestockingVariantId(variantId);
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/dashboard", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
           action: "trigger_restock",
           variantId,
@@ -223,9 +260,10 @@ export default function BackInStockDashboard() {
     if (!formSettings) return;
     setSavingSettings(true);
     try {
+      const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/dashboard", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({
           action: "update_settings",
           settings: formSettings,
@@ -279,9 +317,10 @@ export default function BackInStockDashboard() {
   };
 
   const handleDeleteSub = async (id: string) => {
+    const authHeaders = await getAuthHeaders();
     await fetch("/api/dashboard", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ action: "delete_subscription", subscriptionId: id }),
     });
     showToast("Subscription removed.");
@@ -289,9 +328,10 @@ export default function BackInStockDashboard() {
   };
 
   const handleResetToPending = async (id: string) => {
+    const authHeaders = await getAuthHeaders();
     await fetch("/api/dashboard", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ action: "reset_to_pending", subscriptionId: id }),
     });
     showToast("Subscriber reset to PENDING so you can test restock alerts again.");
@@ -334,6 +374,51 @@ export default function BackInStockDashboard() {
     link.click();
     document.body.removeChild(link);
   };
+
+  if (!loading && (unauthorized || !data)) {
+    const shopAdminUrl = "https://admin.shopify.com/store/muskox/apps/restockpulse";
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-2xl text-center border border-slate-100">
+          <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-5 text-amber-600 shadow-inner">
+            <Lock className="w-8 h-8" />
+          </div>
+
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-100 text-slate-700 mb-3">
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-600" />
+            Adgangskontroll
+          </span>
+
+          <h1 className="text-2xl font-extrabold text-slate-900 mb-2">
+            Beskyttet dashbord
+          </h1>
+
+          <p className="text-sm text-slate-600 leading-relaxed mb-6">
+            RestockPulse inneholder sensitive kundelister og e-postinnstillinger for{" "}
+            <strong>pakklett.no</strong>. Dette dashbordet er sikret og kan kun åpnes fra
+            innsiden av Shopify Admin.
+          </p>
+
+          <a
+            href={shopAdminUrl}
+            target="_top"
+            rel="noopener noreferrer"
+            className="w-full inline-flex items-center justify-center gap-2 bg-[#2D2A38] hover:bg-[#3D384D] text-white font-bold py-3.5 px-6 rounded-xl transition duration-150 shadow-md hover:shadow-lg"
+          >
+            <span>Åpne i Shopify Admin</span>
+            <ExternalLink className="w-4 h-4" />
+          </a>
+
+          <div className="mt-6 pt-5 border-t border-slate-100">
+            <p className="text-xs text-slate-400">
+              Autentisering:{" "}
+              <span className="font-mono text-slate-600">Shopify App Bridge Session Token</span>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading || !data || !formSettings) {
     return (
