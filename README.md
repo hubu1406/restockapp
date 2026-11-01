@@ -4,7 +4,7 @@ A lightweight, high-performance Back in Stock (Restock Alert) notification syste
 
 - **Sender**: PakkLett (`noreply@pakklett.no`)
 - **Language**: Norwegian & Multi-language configurable
-- **Target Store**: `muskox.myshopify.com`
+- **Target Store**: `pakklett.no`
 
 ## Features
 - **Instant Email Alerts**: Dispatches automated back-in-stock notifications via Resend API when products are restocked.

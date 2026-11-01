@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const shopDomain =
       req.headers.get("x-shopify-shop-domain") ||
       process.env.DEFAULT_SHOP_DOMAIN ||
-      "muskox.myshopify.com";
+      "pakklett.no";
     const isInternalTest = req.headers.get("x-internal-webhook-test") === "true";
 
     // Always verify Shopify HMAC in production or unless explicitly triggered via verified internal test

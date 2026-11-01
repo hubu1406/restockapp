@@ -17,7 +17,7 @@
 <div
   id="sw-bis-root"
   data-app-url="{{ app_url | default: 'https://restockpulse.vercel.app' }}"
-  data-shop-domain="{{ shop.permanent_domain }}"
+  data-shop-domain="{{ shop.domain | default: 'pakklett.no' }}"
   data-product-id="{{ product.id }}"
   data-product-title="{{ product.title | escape }}"
   data-product-handle="{{ product.handle }}"
@@ -70,15 +70,8 @@
         id="sw-bis-email-input"
         required
         placeholder="Skriv inn din e-postadresse..."
-        style="width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; margin-bottom: 12px; background: #fff; color: #111827;"
+        style="width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; margin-bottom: 16px; background: #fff; color: #111827;"
       />
-      <label
-        id="sw-bis-optin-wrapper"
-        style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #4b5563; margin-bottom: 16px; cursor: pointer;"
-      >
-        <input type="checkbox" id="sw-bis-optin-checkbox" style="margin: 0;" />
-        <span>Meld meg også på nyhetsbrev og eksklusive tilbud</span>
-      </label>
       <button
         type="submit"
         id="sw-bis-submit-btn"
@@ -114,8 +107,6 @@
     var closeBtn = document.getElementById("sw-bis-close-btn");
     var form = document.getElementById("sw-bis-form");
     var emailInput = document.getElementById("sw-bis-email-input");
-    var optInCheckbox = document.getElementById("sw-bis-optin-checkbox");
-    var optInWrapper = document.getElementById("sw-bis-optin-wrapper");
     var submitBtn = document.getElementById("sw-bis-submit-btn");
     var feedback = document.getElementById("sw-bis-feedback");
     var variantBadge = document.getElementById("sw-bis-variant-badge");
@@ -161,7 +152,6 @@
         submitBtn.style.color = w.buttonTextColor;
         modalTitle.textContent = w.modalTitle;
         modalSubtitle.textContent = w.modalSubtitle;
-        optInWrapper.style.display = w.showMarketingOptIn ? "flex" : "none";
       })
       .catch(function () {});
 
@@ -297,7 +287,7 @@
           imageUrl: productImage,
           price: (currentVariant.price / 100).toFixed(2),
           sku: currentVariant.sku || "",
-          acceptsMarketing: optInCheckbox.checked,
+          acceptsMarketing: false,
         }),
       })
         .then(function (r) { return r.json(); })

@@ -273,7 +273,7 @@ export default function BackInStockDashboard() {
           imageUrl: chosen.imageUrl,
           price: chosen.price,
           sku: chosen.sku,
-          acceptsMarketing: simOptIn,
+          acceptsMarketing: false,
         }),
       });
       const result = await res.json();
@@ -902,36 +902,18 @@ export default function BackInStockDashboard() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Submit Button Text
-                  </label>
-                  <input
-                    type="text"
-                    value={formSettings.modalSubmitText}
-                    onChange={(e) =>
-                      setFormSettings({ ...formSettings, modalSubmitText: e.target.value })
-                    }
-                    className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl"
-                  />
-                </div>
-                <div className="flex items-end pb-2">
-                  <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formSettings.showMarketingOptIn}
-                      onChange={(e) =>
-                        setFormSettings({
-                          ...formSettings,
-                          showMarketingOptIn: e.target.checked,
-                        })
-                      }
-                      className="rounded text-indigo-600"
-                    />
-                    Show Marketing Opt-In
-                  </label>
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Submit Button Text
+                </label>
+                <input
+                  type="text"
+                  value={formSettings.modalSubmitText}
+                  onChange={(e) =>
+                    setFormSettings({ ...formSettings, modalSubmitText: e.target.value })
+                  }
+                  className="w-full px-3.5 py-2 text-sm border border-slate-200 rounded-xl"
+                />
               </div>
 
               <button
@@ -1088,19 +1070,8 @@ export default function BackInStockDashboard() {
                             value={simEmail}
                             onChange={(e) => setSimEmail(e.target.value)}
                             placeholder="Skriv inn din e-postadresse..."
-                            className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="w-full px-3.5 py-2.5 text-sm border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-2"
                           />
-                          {formSettings.showMarketingOptIn ? (
-                            <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={simOptIn}
-                                onChange={(e) => setSimOptIn(e.target.checked)}
-                                className="rounded"
-                              />
-                              Meld meg også på nyhetsbrev og eksklusive tilbud
-                            </label>
-                          ) : null}
                           <button
                             type="submit"
                             disabled={simSubmitting}

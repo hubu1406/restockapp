@@ -24,7 +24,7 @@ model Shop {
   modalSubtitle       String   @default("Skriv inn e-postadressen din nedenfor, så sender vi deg en e-post så snart denne varianten er tilbake på lager.")
   modalSubmitText     String   @default("Varsle meg")
   successMessage      String   @default("Du er satt på ventelisten! Vi sender deg en e-post så snart varen er tilbake på lager.")
-  showMarketingOptIn  Boolean  @default(true)
+  showMarketingOptIn  Boolean  @default(false)
 
   // Email Notification Customization (Norwegian)
   emailSenderName     String   @default("PakkLett")

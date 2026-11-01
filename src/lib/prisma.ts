@@ -46,18 +46,41 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 export const DEFAULT_SHOP_DOMAIN =
-  process.env.DEFAULT_SHOP_DOMAIN || "muskox.myshopify.com";
+  process.env.DEFAULT_SHOP_DOMAIN || "pakklett.no";
 
 /**
  * Ensures the Shop record exists (multi-tenant ready) and seeds initial sample data
  * if the database is brand new so the merchant can explore and test immediately.
  */
 export async function getOrCreateShop(shopDomain?: string): Promise<Shop> {
-  const domain = (shopDomain || DEFAULT_SHOP_DOMAIN).trim().toLowerCase();
+  let domain = (shopDomain || DEFAULT_SHOP_DOMAIN).trim().toLowerCase();
+
+  // Normalize Shopify internal permanent domain to custom store domain
+  if (domain === "muskox.myshopify.com") {
+    domain = "pakklett.no";
+  }
 
   let shop = await prisma.shop.findUnique({
     where: { shopDomain: domain },
   });
+
+  // If not found under pakklett.no, check if a record exists under muskox.myshopify.com and migrate it
+  if (!shop && domain === "pakklett.no") {
+    const legacyShop = await prisma.shop.findUnique({
+      where: { shopDomain: "muskox.myshopify.com" },
+    });
+    if (legacyShop) {
+      shop = await prisma.shop.update({
+        where: { id: legacyShop.id },
+        data: {
+          shopDomain: "pakklett.no",
+          shopName: "PakkLett",
+          emailSenderName: "PakkLett",
+          showMarketingOptIn: false,
+        },
+      });
+    }
+  }
 
   if (!shop) {
     shop = await prisma.shop.create({
@@ -65,6 +88,7 @@ export async function getOrCreateShop(shopDomain?: string): Promise<Shop> {
         shopDomain: domain,
         shopName: "PakkLett",
         emailSenderName: "PakkLett",
+        showMarketingOptIn: false,
       },
     });
 
@@ -86,10 +110,10 @@ export async function getOrCreateShop(shopDomain?: string): Promise<Shop> {
             productUrl: `https://${domain}/products/merino-wool-oversized-crewneck?variant=44001122334001`,
             imageUrl:
               "https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=600&q=80",
-            price: "128.00",
+            price: "1280",
             sku: "MW-CHR-M",
             email: "emma.wilson@example.com",
-            acceptsMarketing: true,
+            acceptsMarketing: false,
             status: "PENDING",
           },
           {
@@ -102,10 +126,10 @@ export async function getOrCreateShop(shopDomain?: string): Promise<Shop> {
             productUrl: `https://${domain}/products/merino-wool-oversized-crewneck?variant=44001122334001`,
             imageUrl:
               "https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=600&q=80",
-            price: "128.00",
+            price: "1280",
             sku: "MW-CHR-M",
             email: "liam.chen@example.com",
-            acceptsMarketing: true,
+            acceptsMarketing: false,
             status: "PENDING",
           },
           {
@@ -118,7 +142,7 @@ export async function getOrCreateShop(shopDomain?: string): Promise<Shop> {
             productUrl: `https://${domain}/products/merino-wool-oversized-crewneck?variant=44001122334001`,
             imageUrl:
               "https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=600&q=80",
-            price: "128.00",
+            price: "1280",
             sku: "MW-CHR-M",
             email: "sofia.martinez@example.com",
             acceptsMarketing: false,
@@ -134,10 +158,10 @@ export async function getOrCreateShop(shopDomain?: string): Promise<Shop> {
             productUrl: `https://${domain}/products/artisan-ceramic-pour-over-set?variant=44001122334002`,
             imageUrl:
               "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80",
-            price: "64.00",
+            price: "640",
             sku: "CP-SND-600",
             email: "noah.patel@example.com",
-            acceptsMarketing: true,
+            acceptsMarketing: false,
             status: "PENDING",
           },
           {
@@ -150,7 +174,7 @@ export async function getOrCreateShop(shopDomain?: string): Promise<Shop> {
             productUrl: `https://${domain}/products/artisan-ceramic-pour-over-set?variant=44001122334002`,
             imageUrl:
               "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80",
-            price: "64.00",
+            price: "640",
             sku: "CP-SND-600",
             email: "olivia.kim@example.com",
             acceptsMarketing: false,
@@ -166,10 +190,10 @@ export async function getOrCreateShop(shopDomain?: string): Promise<Shop> {
             productUrl: `https://${domain}/products/minimalist-leather-weekender-bag?variant=44001122334003`,
             imageUrl:
               "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=600&q=80",
-            price: "295.00",
+            price: "2950",
             sku: "LW-COG-01",
             email: "lucas.meyer@example.com",
-            acceptsMarketing: true,
+            acceptsMarketing: false,
             status: "NOTIFIED",
             notifiedAt: new Date(Date.now() - 1000 * 60 * 60 * 3),
           },
