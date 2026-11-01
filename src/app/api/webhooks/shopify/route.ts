@@ -32,11 +32,11 @@ export async function POST(req: NextRequest) {
       req.headers.get("x-shopify-shop-domain") ||
       process.env.DEFAULT_SHOP_DOMAIN ||
       "pakklett.no";
-    const isInternalTest = req.headers.get("x-internal-webhook-test") === "true";
 
-    // Always verify Shopify HMAC in production or unless explicitly triggered via verified internal test
-    if (!isInternalTest && process.env.SHOPIFY_WEBHOOK_SECRET) {
-      const isValid = verifyShopifyWebhookHmac(rawBody, hmacHeader);
+    // Strictly enforce cryptographic Shopify HMAC verification
+    const webhookSecret = process.env.SHOPIFY_WEBHOOK_SECRET || process.env.SHOPIFY_CLIENT_SECRET;
+    if (webhookSecret) {
+      const isValid = verifyShopifyWebhookHmac(rawBody, hmacHeader, webhookSecret);
       if (!isValid) {
         return NextResponse.json(
           { error: "Invalid Shopify Webhook HMAC signature" },
