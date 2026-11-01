@@ -91,18 +91,18 @@ export function renderBackInStockEmail(data: EmailTemplateData): {
       <td align="center">
         <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width: 500px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);">
           
-          <!-- Brand Header -->
+          <!-- Thin Brand Header Bar -->
           <tr>
-            <td style="padding: 20px 28px 10px; text-align: center;">
-              <span style="font-size: 13px; font-weight: 700; color: #9ca3af; letter-spacing: 0.8px; text-transform: uppercase;">
-                ${data.shop.emailSenderName || data.shop.shopName}
+            <td style="padding: 12px 24px; background-color: ${buttonColor}; text-align: center;">
+              <span style="font-size: 15px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px;">
+                pakklett.no
               </span>
             </td>
           </tr>
 
           <!-- Single Top Line: Tilbake på lager -->
           <tr>
-            <td style="padding: 0 28px 14px; text-align: center;">
+            <td style="padding: 24px 28px 14px; text-align: center;">
               <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #111827; letter-spacing: -0.3px;">
                 Tilbake på lager
               </h1>
