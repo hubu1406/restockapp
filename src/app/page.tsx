@@ -115,40 +115,28 @@ interface DashboardData {
 
 const DEMO_PRODUCTS = [
   {
-    productId: "gid://shopify/Product/8901234567001",
-    variantId: "44001122334001",
-    productTitle: "Merino Wool Oversized Crewneck",
-    variantTitle: "Charcoal / Medium",
-    productHandle: "merino-wool-oversized-crewneck",
+    productId: "8439791386815",
+    variantId: "45660467953855",
+    productTitle: "IceFlame NXT dunquilt - fra 324g",
+    variantTitle: "NXT Summer 15°C 194x124cm 324g 800FP",
+    productHandle: "iceflame-nxt-dunquilt-fra-324g",
     imageUrl:
-      "https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=600&q=80",
-    price: "128.00",
-    sku: "MW-CHR-M",
+      "https://pakklett.no/cdn/shop/files/imgi_95_semi-nxt.png?v=1719875440&width=600",
+    price: "1890.00",
+    sku: "NXT_SUMMER_850",
     available: false,
   },
   {
-    productId: "gid://shopify/Product/8901234567002",
-    variantId: "44001122334002",
-    productTitle: "Artisan Ceramic Pour-Over Set",
-    variantTitle: "Matte Sand / 600ml",
-    productHandle: "artisan-ceramic-pour-over-set",
+    productId: "8439791386815",
+    variantId: "45660468019391",
+    productTitle: "IceFlame NXT dunquilt - fra 324g",
+    variantTitle: "NXT L 5°C 194x134cm 585g 850FP",
+    productHandle: "iceflame-nxt-dunquilt-fra-324g",
     imageUrl:
-      "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80",
-    price: "64.00",
-    sku: "CP-SND-600",
+      "https://pakklett.no/cdn/shop/files/imgi_95_semi-nxt.png?v=1719875440&width=600",
+    price: "2799.00",
+    sku: "NXT_QUILT_L_850FP",
     available: false,
-  },
-  {
-    productId: "gid://shopify/Product/8901234567003",
-    variantId: "44001122334003",
-    productTitle: "Minimalist Leather Weekender Bag",
-    variantTitle: "Cognac Brown",
-    productHandle: "minimalist-leather-weekender-bag",
-    imageUrl:
-      "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?auto=format&fit=crop&w=600&q=80",
-    price: "295.00",
-    sku: "LW-COG-01",
-    available: true,
   },
 ];
 
@@ -587,7 +575,18 @@ export default function BackInStockDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 text-sm">
-                    {data.topVariants.map((item) => (
+                    {data.topVariants.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-12 px-6 text-center text-slate-500">
+                          <PackageCheck className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+                          <p className="font-semibold text-slate-700">Ingen ventelister aktive ennå</p>
+                          <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                            Når kunder på pakklett.no klikker på «Varsle meg når på lager» for utsolgte varer, vises de her automatisk.
+                          </p>
+                        </td>
+                      </tr>
+                    ) : (
+                      data.topVariants.map((item) => (
                       <tr key={item.variantId} className="hover:bg-slate-50/80 transition">
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-3.5">
@@ -673,7 +672,7 @@ export default function BackInStockDashboard() {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    )))}
                   </tbody>
                 </table>
               </div>

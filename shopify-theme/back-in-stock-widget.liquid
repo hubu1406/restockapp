@@ -16,6 +16,7 @@
 {% if product %}
 <div
   id="sw-bis-root"
+  class="product-form__item product-form__item--restock"
   data-app-url="{{ app_url | default: 'https://restockpulse.vercel.app' }}"
   data-shop-domain="{{ shop.domain | default: 'pakklett.no' }}"
   data-product-id="{{ product.id }}"
@@ -23,7 +24,7 @@
   data-product-handle="{{ product.handle }}"
   data-product-url="{{ shop.url }}{{ product.url }}"
   data-product-image="https:{{ product.featured_image | img_url: '600x' }}"
-  style="margin-top: 12px; width: 100%; clear: both; display: none;"
+  style="margin-top: 14px; width: 100%; flex-basis: 100%; clear: both; display: none; box-sizing: border-box;"
 >
   <button
     type="button"
@@ -115,22 +116,25 @@
 
     var currentVariant = {{ product.selected_or_first_available_variant | json }};
 
-    // Place the button cleanly inside Venture's product form right below the AddToCart / Sold Out button
+    // Place the button cleanly inside Venture's product form right below the AddToCart / Sold Out block
     function mountWidgetInVenture() {
-      var ventureAddToCartBtn =
+      // 1. Try placing after the entire submit button container
+      var submitContainer =
+        document.querySelector(".product-form__item--submit") ||
         document.getElementById("AddToCart-product-template") ||
-        document.getElementById("AddToCart") ||
-        document.querySelector('form[action*="/cart/add"] [name="add"]') ||
-        document.querySelector('form[action*="/cart/add"] button[type="submit"]');
+        document.getElementById("AddToCart");
 
-      if (ventureAddToCartBtn && ventureAddToCartBtn.parentNode) {
-        ventureAddToCartBtn.parentNode.insertBefore(root, ventureAddToCartBtn.nextSibling);
+      if (submitContainer && submitContainer.parentNode) {
+        submitContainer.parentNode.insertBefore(root, submitContainer.nextSibling);
         return;
       }
 
+      // 2. Fallback: place right after product form
       var productForm =
+        document.getElementById("AddToCartForm") ||
         document.getElementById("AddToCartForm-product-template") ||
         document.querySelector('form[action*="/cart/add"]');
+
       if (productForm && productForm.parentNode) {
         productForm.parentNode.insertBefore(root, productForm.nextSibling);
       }

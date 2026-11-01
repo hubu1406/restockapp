@@ -7,6 +7,27 @@ export async function GET(req: NextRequest) {
     const shopDomain = req.nextUrl.searchParams.get("shop") || undefined;
     const shop = await getOrCreateShop(shopDomain);
 
+    // Ensure any previously seeded mock items are deleted from database
+    await prisma.waitlistSubscription.deleteMany({
+      where: {
+        shopId: shop.id,
+        OR: [
+          {
+            productId: {
+              in: [
+                "gid://shopify/Product/8901234567001",
+                "gid://shopify/Product/8901234567002",
+                "gid://shopify/Product/8901234567003",
+              ],
+            },
+          },
+          { productTitle: { contains: "Merino" } },
+          { productTitle: { contains: "Ceramic" } },
+          { productTitle: { contains: "Weekender" } },
+        ],
+      },
+    });
+
     const [subscriptions, notificationLogs] = await Promise.all([
       prisma.waitlistSubscription.findMany({
         where: { shopId: shop.id },
@@ -79,17 +100,17 @@ export async function GET(req: NextRequest) {
       (a, b) => b.pendingSubscribers - a.pendingSubscribers
     );
 
-    // Generate a live HTML preview of the current email template
+    // Generate a live HTML preview of the current email template with real PakkLett product
     const samplePreview = renderBackInStockEmail({
       shop,
-      productTitle: "Merino Wool Oversized Crewneck",
-      variantTitle: "Charcoal / Medium",
-      price: "128.00",
+      productTitle: "IceFlame NXT dunquilt - fra 324g",
+      variantTitle: "NXT Summer 15°C 194x124cm 324g 800FP",
+      price: "1890",
       imageUrl:
-        "https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?auto=format&fit=crop&w=600&q=80",
-      productUrl: `https://${shop.shopDomain}/products/merino-wool-oversized-crewneck?variant=44001122334001`,
-      variantId: "44001122334001",
-      recipientEmail: "customer@example.com",
+        "https://pakklett.no/cdn/shop/files/imgi_95_semi-nxt.png?v=1719875440&width=600",
+      productUrl: `https://${shop.shopDomain}/products/iceflame-nxt-dunquilt-fra-324g?variant=45660467953855`,
+      variantId: "45660467953855",
+      recipientEmail: "kunde@pakklett.no",
     });
 
     const isLiveResendConfigured = Boolean(
@@ -212,6 +233,31 @@ export async function POST(req: NextRequest) {
         data: { status: "PENDING", notifiedAt: null },
       });
       return NextResponse.json({ ok: true });
+    }
+
+    if (action === "clear_mock_data") {
+      const shopDomain =
+        req.headers.get("x-shop-domain") ||
+        body.shopDomain ||
+        process.env.DEFAULT_SHOP_DOMAIN ||
+        "pakklett.no";
+      const shop = await getOrCreateShop(shopDomain);
+      await prisma.notificationLog.deleteMany({
+        where: { shopId: shop.id },
+      });
+      await prisma.waitlistSubscription.deleteMany({
+        where: {
+          shopId: shop.id,
+          productId: {
+            in: [
+              "gid://shopify/Product/8901234567001",
+              "gid://shopify/Product/8901234567002",
+              "gid://shopify/Product/8901234567003",
+            ],
+          },
+        },
+      });
+      return NextResponse.json({ ok: true, message: "Mockup products cleared." });
     }
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
