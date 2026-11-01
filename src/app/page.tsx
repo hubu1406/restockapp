@@ -405,7 +405,9 @@ export default function BackInStockDashboard() {
   };
 
   if (!loading && (unauthorized || !data)) {
-    const shopAdminUrl = "https://admin.shopify.com/store/muskox/apps/restockpulse";
+    const shopAdminUrl =
+      process.env.NEXT_PUBLIC_SHOPIFY_APP_URL ||
+      "https://admin.shopify.com/store/muskox/apps/restockpulse-2";
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-2xl text-center border border-slate-100">
