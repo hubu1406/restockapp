@@ -24,64 +24,6 @@ export interface EmailTemplateData {
   recipientEmail: string;
 }
 
-export interface DailyEmailUsage {
-  sentInLast24h: number;
-  limit: number;
-  remaining: number;
-  isQuotaExceeded: boolean;
-  resetsInHours: number;
-}
-
-/**
- * Calculates email sending volume over a rolling 24-hour window.
- * Free Resend tier limit: 100 emails/day.
- * We default to a safe cap of 95 to prevent hitting the hard API wall.
- */
-export async function getDailyEmailUsage(
-  shopId: string,
-  customLimit?: number
-): Promise<DailyEmailUsage> {
-  const limit =
-    customLimit ??
-    (process.env.DAILY_EMAIL_LIMIT
-      ? parseInt(process.env.DAILY_EMAIL_LIMIT, 10)
-      : 95);
-
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-  const sentLogs = await prisma.notificationLog.findMany({
-    where: {
-      shopId,
-      deliveryStatus: "SENT",
-      createdAt: { gte: oneDayAgo },
-    },
-    orderBy: { createdAt: "asc" },
-    select: { createdAt: true },
-  });
-
-  const sentInLast24h = sentLogs.length;
-  const remaining = Math.max(0, limit - sentInLast24h);
-  const isQuotaExceeded = remaining <= 0;
-
-  let resetsInHours = 0;
-  if (sentLogs.length > 0) {
-    const oldest = sentLogs[0].createdAt.getTime();
-    const expiresAt = oldest + 24 * 60 * 60 * 1000;
-    resetsInHours = Math.max(
-      0,
-      Math.ceil((expiresAt - Date.now()) / (1000 * 60 * 60))
-    );
-  }
-
-  return {
-    sentInLast24h,
-    limit,
-    remaining,
-    isQuotaExceeded,
-    resetsInHours,
-  };
-}
-
 /**
  * Replaces template variables like {{product_title}} or {{shop_name}}
  */
@@ -240,87 +182,33 @@ export function renderBackInStockEmail(data: EmailTemplateData): {
 
 /**
  * Dispatches Back-in-Stock emails for a batch of PENDING subscriptions.
- * Enforces a daily sending quota (defaults to 95/day) to prevent hitting
- * Resend Free tier daily rate limits (100 emails/day).
- * Remaining subscribers stay in status PENDING and will be picked up
- * automatically the next day by the daily cron queue runner.
+ * Designed for Vercel Free Tier: uses Resend API
+ * and falls back to SIMULATED mode when RESEND_API_KEY is not configured yet.
  */
 export async function dispatchBackInStockNotifications(
   shop: Shop,
   subscriptions: WaitlistSubscription[],
-  inventoryAvailable?: number,
-  options?: { bypassDailyQuota?: boolean }
+  inventoryAvailable?: number
 ): Promise<{
   notifiedCount: number;
-  queuedCount: number;
-  quotaExceeded: boolean;
   mode: "RESEND_LIVE" | "SIMULATED";
   errors: string[];
-  message?: string;
 }> {
   if (subscriptions.length === 0) {
-    return {
-      notifiedCount: 0,
-      queuedCount: 0,
-      quotaExceeded: false,
-      mode: "SIMULATED",
-      errors: [],
-    };
+    return { notifiedCount: 0, mode: "SIMULATED", errors: [] };
   }
 
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const isLiveResend = Boolean(
-    apiKey && apiKey.startsWith("re_") && apiKey !== "re_mock_mode"
-  );
-  const fromAddress =
-    process.env.RESEND_FROM_EMAIL ||
-    `${shop.emailSenderName || "PakkLett"} <noreply@pakklett.no>`;
-
-  // Check 24-hour daily quota limit (safety cap at 95/day)
-  const usage = await getDailyEmailUsage(shop.id);
-  if (isLiveResend && !options?.bypassDailyQuota && usage.isQuotaExceeded) {
-    return {
-      notifiedCount: 0,
-      queuedCount: subscriptions.length,
-      quotaExceeded: true,
-      mode: "RESEND_LIVE",
-      errors: [
-        `Dagsgrensen på ${usage.limit} e-poster er nådd for siste 24 timer. Resterende ${subscriptions.length} varsler venter i kø til i morgen.`,
-      ],
-      message: `Dagsgrensen på ${usage.limit} e-poster er nådd. Resterende abonnenter er satt på vent til i morgen.`,
-    };
-  }
-
-  // Calculate allowed emails for this batch
-  const inventoryCap =
+  // Smart batching: if inventory is known (e.g. 3 items restocked), optionally cap or notify up to 100 per batch
+  const batchLimit =
     inventoryAvailable && inventoryAvailable > 0
-      ? Math.max(inventoryAvailable * 5, 25)
-      : subscriptions.length;
+      ? Math.min(subscriptions.length, Math.max(inventoryAvailable * 5, 25), 100)
+      : Math.min(subscriptions.length, 100);
 
-  const quotaCap =
-    isLiveResend && !options?.bypassDailyQuota
-      ? Math.min(subscriptions.length, usage.remaining)
-      : subscriptions.length;
-
-  const allowedBatchSize = Math.max(
-    0,
-    Math.min(subscriptions.length, inventoryCap, quotaCap)
-  );
-
-  if (allowedBatchSize === 0) {
-    return {
-      notifiedCount: 0,
-      queuedCount: subscriptions.length,
-      quotaExceeded: usage.isQuotaExceeded,
-      mode: isLiveResend ? "RESEND_LIVE" : "SIMULATED",
-      errors: [
-        `Ingen e-poster kunne sendes nå. Resterende kvote i dag: ${usage.remaining}.`,
-      ],
-    };
-  }
-
-  const targetSubs = subscriptions.slice(0, allowedBatchSize);
-  const queuedSubsCount = subscriptions.length - targetSubs.length;
+  const targetSubs = subscriptions.slice(0, batchLimit);
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const isLiveResend = Boolean(apiKey && apiKey.startsWith("re_") && apiKey !== "re_mock_mode");
+  const fromAddress =
+    process.env.RESEND_FROM_EMAIL || `${shop.emailSenderName || "PakkLett"} <noreply@pakklett.no>`;
 
   const renderedEmails = targetSubs.map((sub) => {
     const rendered = renderBackInStockEmail({
@@ -338,19 +226,11 @@ export async function dispatchBackInStockNotifications(
 
   const errors: string[] = [];
   let notifiedCount = 0;
-  let hitQuotaDuringSend = false;
-  const perSubStatus = new Map<
-    string,
-    { status: "SENT" | "SIMULATED" | "FAILED"; error?: string }
-  >();
+  const perSubStatus = new Map<string, { status: "SENT" | "SIMULATED" | "FAILED"; error?: string }>();
 
   if (isLiveResend) {
     const resend = new Resend(apiKey);
     for (const item of renderedEmails) {
-      if (hitQuotaDuringSend) {
-        break;
-      }
-
       // Skip sending to fake @example.com demo addresses so Resend sandbox doesn't reject the batch
       if (item.sub.email.endsWith("@example.com")) {
         perSubStatus.set(item.sub.id, { status: "SIMULATED" });
@@ -366,21 +246,11 @@ export async function dispatchBackInStockNotifications(
           subject: item.subject,
           html: item.html,
         });
-
         if (response.error) {
-          const errMsg = response.error.message || "Unknown error";
-          errors.push(`${item.sub.email}: ${errMsg}`);
-          if (
-            errMsg.toLowerCase().includes("quota") ||
-            errMsg.toLowerCase().includes("rate limit") ||
-            errMsg.toLowerCase().includes("daily")
-          ) {
-            hitQuotaDuringSend = true;
-            break;
-          }
+          errors.push(`${item.sub.email}: ${response.error.message}`);
           perSubStatus.set(item.sub.id, {
             status: "FAILED",
-            error: errMsg,
+            error: response.error.message,
           });
         } else {
           notifiedCount++;
@@ -389,13 +259,6 @@ export async function dispatchBackInStockNotifications(
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown Resend error";
         errors.push(`${item.sub.email}: ${msg}`);
-        if (
-          msg.toLowerCase().includes("quota") ||
-          msg.toLowerCase().includes("rate limit")
-        ) {
-          hitQuotaDuringSend = true;
-          break;
-        }
         perSubStatus.set(item.sub.id, { status: "FAILED", error: msg });
       }
     }
@@ -407,57 +270,40 @@ export async function dispatchBackInStockNotifications(
   }
 
   const now = new Date();
-  const attemptedItems = renderedEmails.filter((item) =>
-    perSubStatus.has(item.sub.id)
-  );
 
   // Update subscriptions & create NotificationLogs inside a transaction
-  if (attemptedItems.length > 0) {
-    await prisma.$transaction(
-      attemptedItems.flatMap((item) => {
-        const outcome = perSubStatus.get(item.sub.id) || {
-          status: "SIMULATED",
-        };
-        const isOk =
-          outcome.status === "SENT" || outcome.status === "SIMULATED";
-        return [
-          prisma.waitlistSubscription.update({
-            where: { id: item.sub.id },
-            data: {
-              status: isOk ? "NOTIFIED" : "PENDING",
-              notifiedAt: isOk ? now : null,
-            },
-          }),
-          prisma.notificationLog.create({
-            data: {
-              shopId: shop.id,
-              subscriptionId: item.sub.id,
-              recipientEmail: item.sub.email,
-              productTitle: item.sub.productTitle,
-              variantTitle: item.sub.variantTitle,
-              subject: item.subject,
-              deliveryStatus: outcome.status,
-              errorMessage: outcome.error || null,
-              htmlPreview: item.html,
-            },
-          }),
-        ];
-      })
-    );
-  }
-
-  const totalQueuedRemaining =
-    queuedSubsCount + (targetSubs.length - attemptedItems.length);
+  await prisma.$transaction(
+    renderedEmails.flatMap((item) => {
+      const outcome = perSubStatus.get(item.sub.id) || { status: "SIMULATED" };
+      const isOk = outcome.status === "SENT" || outcome.status === "SIMULATED";
+      return [
+        prisma.waitlistSubscription.update({
+          where: { id: item.sub.id },
+          data: {
+            status: isOk ? "NOTIFIED" : "PENDING",
+            notifiedAt: isOk ? now : null,
+          },
+        }),
+        prisma.notificationLog.create({
+          data: {
+            shopId: shop.id,
+            subscriptionId: item.sub.id,
+            recipientEmail: item.sub.email,
+            productTitle: item.sub.productTitle,
+            variantTitle: item.sub.variantTitle,
+            subject: item.subject,
+            deliveryStatus: outcome.status,
+            errorMessage: outcome.error || null,
+            htmlPreview: item.html,
+          },
+        }),
+      ];
+    })
+  );
 
   return {
     notifiedCount,
-    queuedCount: totalQueuedRemaining,
-    quotaExceeded: usage.isQuotaExceeded || hitQuotaDuringSend,
     mode: isLiveResend ? "RESEND_LIVE" : "SIMULATED",
     errors,
-    message:
-      totalQueuedRemaining > 0
-        ? `${notifiedCount} varsler sendt. ${totalQueuedRemaining} abonnenter venter i kø til neste dags kvote.`
-        : undefined,
   };
 }
