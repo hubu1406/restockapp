@@ -84,8 +84,26 @@ export function renderBackInStockEmail(data: EmailTemplateData): {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${subject}</title>
+  <style>
+    /* Prevent email clients from making links blue and underlined */
+    a, a:visited, a:hover, a:active {
+      text-decoration: none;
+    }
+    .brand-header-link, .brand-header-link:visited, .brand-header-link:hover, .brand-header-link:active {
+      color: #ffffff !important;
+      text-decoration: none !important;
+    }
+    a[x-apple-data-detectors] {
+      color: inherit !important;
+      text-decoration: none !important;
+      font-size: inherit !important;
+      font-family: inherit !important;
+      font-weight: inherit !important;
+      line-height: inherit !important;
+    }
+  </style>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #111827;">
+<body id="body" style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #111827;">
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color: #f3f4f6; padding: 24px 12px;">
     <tr>
       <td align="center">
@@ -94,9 +112,9 @@ export function renderBackInStockEmail(data: EmailTemplateData): {
           <!-- Thin Brand Header Bar -->
           <tr>
             <td style="padding: 12px 24px; background-color: ${buttonColor}; text-align: center;">
-              <span style="font-size: 15px; font-weight: 700; color: #ffffff; letter-spacing: 0.5px;">
-                pakklett.no
-              </span>
+              <a href="https://pakklett.no" target="_blank" rel="noopener noreferrer" class="brand-header-link" style="color: #ffffff !important; text-decoration: none !important; font-size: 15px; font-weight: 700; letter-spacing: 0.5px; display: inline-block;">
+                <span style="color: #ffffff !important; text-decoration: none !important;">pakklett.no</span>
+              </a>
             </td>
           </tr>
 
