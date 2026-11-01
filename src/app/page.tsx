@@ -405,9 +405,6 @@ export default function BackInStockDashboard() {
   };
 
   if (!loading && (unauthorized || !data)) {
-    const shopAdminUrl =
-      process.env.NEXT_PUBLIC_SHOPIFY_APP_URL ||
-      "https://admin.shopify.com/store/muskox/apps/restockpulse-2";
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-3xl p-8 shadow-2xl text-center border border-slate-100">
@@ -421,14 +418,11 @@ export default function BackInStockDashboard() {
           </span>
 
           <h1 className="text-2xl font-extrabold text-slate-900 mb-2">
-            {isInsideShopify ? "Autentiseringsfeil" : "Beskyttet dashbord"}
+            Beskyttet dashbord
           </h1>
 
           <p className="text-sm text-slate-600 leading-relaxed mb-6">
-            {isInsideShopify
-              ? authError ||
-                "Venter på autorisasjon fra Shopify. Dersom du nettopp la til miljøvariablene i Vercel, må prosjektet bygges på nytt."
-              : "RestockPulse inneholder sensitive kundelister og e-postinnstillinger for pakklett.no. Dette dashbordet er sikret og kan kun åpnes fra innsiden av Shopify Admin."}
+            Dette dashbordet er beskyttet og krever autorisasjon. Vennligst åpne appen direkte fra din Shopify Admin.
           </p>
 
           {isInsideShopify ? (
@@ -439,22 +433,12 @@ export default function BackInStockDashboard() {
               <RefreshCw className="w-4 h-4" />
               <span>Prøv igjen</span>
             </button>
-          ) : (
-            <a
-              href={shopAdminUrl}
-              target="_top"
-              rel="noopener noreferrer"
-              className="w-full inline-flex items-center justify-center gap-2 bg-[#2D2A38] hover:bg-[#3D384D] text-white font-bold py-3.5 px-6 rounded-xl transition duration-150 shadow-md hover:shadow-lg"
-            >
-              <span>Åpne i Shopify Admin</span>
-              <ExternalLink className="w-4 h-4" />
-            </a>
-          )}
+          ) : null}
 
           <div className="mt-6 pt-5 border-t border-slate-100">
             <p className="text-xs text-slate-400">
               Autentisering:{" "}
-              <span className="font-mono text-slate-600">Shopify App Bridge Session Token</span>
+              <span className="font-mono text-slate-600">Shopify App Bridge</span>
             </p>
           </div>
         </div>
