@@ -158,9 +158,6 @@ export function renderBackInStockEmail(data: EmailTemplateData): {
 </html>`;
 
   return { subject, html };
-}`;
-
-  return { subject, html };
 }
 
 /**
