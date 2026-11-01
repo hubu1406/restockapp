@@ -130,28 +130,30 @@ export function renderBackInStockEmail(data: EmailTemplateData): {
           <!-- Product Image right at the top -->
           ${imageBlock}
 
-          <!-- Product Title, Price & Primary Action Link -->
+          <!-- Primary CTA Button directly under the photo -->
           <tr>
-            <td style="padding: 4px 28px 24px; text-align: center;">
-              <h2 style="margin: 0 0 6px; font-size: 20px; font-weight: 700; color: #111827; line-height: 1.3;">
+            <td style="padding: 4px 28px 18px; text-align: center;">
+              <a href="${checkoutUrl}" style="display: inline-block; background-color: ${buttonColor}; color: #ffffff !important; font-size: 15px; font-weight: 700; text-decoration: none !important; padding: 14px 44px; border-radius: 8px; letter-spacing: 0.2px; box-shadow: 0 2px 6px rgba(0,0,0,0.12);">
+                ${buttonText} &rarr;
+              </a>
+            </td>
+          </tr>
+
+          <!-- Product Title, Variant, Price & Notes -->
+          <tr>
+            <td style="padding: 0 28px 24px; text-align: center;">
+              <h2 style="margin: 0 0 4px; font-size: 18px; font-weight: 700; color: #111827; line-height: 1.3;">
                 ${data.productTitle}
               </h2>
               ${variantSubtitle}
-              <div style="font-size: 19px; font-weight: 800; color: #111827; margin: 8px 0 20px;">
+              <div style="font-size: 17px; font-weight: 800; color: #111827; margin: 6px 0 16px;">
                 ${data.price} kr
-              </div>
-
-              <!-- Primary CTA Link / Button -->
-              <div style="margin-bottom: 24px;">
-                <a href="${checkoutUrl}" style="display: inline-block; background-color: ${buttonColor}; color: #ffffff; font-size: 15px; font-weight: 700; text-decoration: none; padding: 14px 40px; border-radius: 8px; letter-spacing: 0.2px; box-shadow: 0 2px 6px rgba(0,0,0,0.12);">
-                  ${buttonText} &rarr;
-                </a>
               </div>
 
               <!-- Other explanatory text placed after -->
               ${
                 bodyText
-                  ? `<div style="border-top: 1px solid #f3f4f6; padding-top: 18px; margin-top: 4px;">
+                  ? `<div style="border-top: 1px solid #f3f4f6; padding-top: 16px;">
                       <p style="margin: 0 auto; font-size: 14px; line-height: 1.6; color: #4b5563; max-width: 420px;">
                         ${bodyText}
                       </p>
