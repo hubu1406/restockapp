@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrCreateShop, prisma } from "@/lib/prisma";
-import { dispatchBackInStockNotifications, renderBackInStockEmail } from "@/lib/email";
+import {
+  dispatchBackInStockNotifications,
+  renderBackInStockEmail,
+  getDailyEmailUsage,
+} from "@/lib/email";
 import { verifyShopifySessionToken } from "@/lib/shopify-session-token";
+import { processRestockQueue } from "@/lib/queue-processor";
 
 function authorizeRequest(req: NextRequest) {
   // If SHOPIFY_CLIENT_SECRET is configured, enforce strict Shopify Session Token verification
@@ -165,6 +170,8 @@ export async function GET(req: NextRequest) {
         process.env.RESEND_API_KEY !== "re_mock_mode"
     );
 
+    const dailyUsage = await getDailyEmailUsage(shop.id);
+
     return NextResponse.json({
       shop,
       kpis: {
@@ -174,6 +181,7 @@ export async function GET(req: NextRequest) {
         convertedCount,
         pendingRevenuePotential: pendingRevenuePotential.toFixed(2),
       },
+      dailyUsage,
       topVariants,
       subscriptions,
       notificationLogs,
@@ -202,6 +210,11 @@ export async function POST(req: NextRequest) {
     const { action, shopDomain } = body;
     const shop = await getOrCreateShop(shopDomain);
 
+    if (action === "resume_queue") {
+      const result = await processRestockQueue(shop.shopDomain);
+      return NextResponse.json(result);
+    }
+
     if (action === "trigger_restock") {
       const { variantId, inventoryQuantity = 10 } = body;
       if (!variantId) {
@@ -221,7 +234,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           ok: true,
           notifiedCount: 0,
-          message: "No pending subscribers for this variant.",
+          queuedCount: 0,
+          message: "Ingen ventende abonnenter for denne varianten.",
         });
       }
 
@@ -234,8 +248,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         notifiedCount: result.notifiedCount,
+        queuedCount: result.queuedCount,
+        quotaExceeded: result.quotaExceeded,
         mode: result.mode,
         errors: result.errors,
+        message: result.message,
       });
     }
 

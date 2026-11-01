@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import {
   Bell,
   CheckCircle2,
+  Clock,
   Code2,
   Copy,
   Download,
@@ -102,6 +103,13 @@ interface DashboardData {
     convertedCount: number;
     pendingRevenuePotential: string;
   };
+  dailyUsage?: {
+    sentInLast24h: number;
+    limit: number;
+    remaining: number;
+    isQuotaExceeded: boolean;
+    resetsInHours: number;
+  };
   topVariants: TopVariant[];
   subscriptions: Subscription[];
   notificationLogs: NotificationLogItem[];
@@ -156,6 +164,7 @@ export default function BackInStockDashboard() {
   // Action states
   const [restockingVariantId, setRestockingVariantId] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [resumingQueue, setResumingQueue] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Editable form state for Widget & Email settings
@@ -273,14 +282,40 @@ export default function BackInStockDashboard() {
       const result = await res.json();
       if (res.ok) {
         showToast(
-          result.notifiedCount > 0
-            ? `Sent ${result.notifiedCount} Back-in-Stock email(s) for "${productTitle}" (${result.mode})!`
-            : `No pending subscribers waiting for "${productTitle}".`
+          result.message ||
+            (result.notifiedCount > 0
+              ? `Sendte ${result.notifiedCount} e-post(er) for "${productTitle}" (${result.mode})!`
+              : `Ingen ventende kunder for "${productTitle}".`)
         );
         await fetchDashboard();
       }
     } finally {
       setRestockingVariantId(null);
+    }
+  };
+
+  const handleResumeQueue = async () => {
+    setResumingQueue(true);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch("/api/dashboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ action: "resume_queue" }),
+      });
+      const result = await res.json();
+      if (res.ok) {
+        showToast(result.message || `Behandlet: ${result.processedCount} sendt.`);
+        await fetchDashboard();
+      } else {
+        showToast(`Feil: ${result.error || "Kunne ikke behandle køen."}`);
+      }
+    } catch (err) {
+      showToast(
+        `Feil: ${err instanceof Error ? err.message : "Kunne ikke behandle køen."}`
+      );
+    } finally {
+      setResumingQueue(false);
     }
   };
 
@@ -607,7 +642,7 @@ export default function BackInStockDashboard() {
                   </div>
                 </div>
                 <div className="mt-3 text-3xl font-extrabold text-emerald-600">
-                  ${data.kpis.pendingRevenuePotential}
+                  {data.kpis.pendingRevenuePotential} kr
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
                   Potential revenue from pending alerts
@@ -646,6 +681,75 @@ export default function BackInStockDashboard() {
                 <p className="mt-1 text-xs text-slate-500">
                   Out-of-stock SKUs with demand
                 </p>
+              </div>
+            </div>
+
+            {/* Daily Sending Quota & Automated Queue Runner Card */}
+            <div className="bg-gradient-to-br from-slate-900 to-[#1e1b2e] text-white rounded-2xl p-6 shadow-sm border border-slate-700/80">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      Resend Gratisgrense-sikring (100/dag)
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                      <Clock className="w-3 h-3 text-indigo-400" />
+                      Vercel Cron: Daglig kl. 09:00
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    Dagsgrense & Automatisk Kø-behandling
+                  </h3>
+                  <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                    For å garantere at du aldri overskrider Resend-gratisgrensen (100 e-poster per døgn), stopper RestockPulse automatisk etter <strong>{data.dailyUsage?.limit || 95} e-poster per døgn</strong>. Eventuelle overskytende varsler settes trygt på vent og sendes automatisk neste dag.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 shrink-0">
+                  <button
+                    onClick={handleResumeQueue}
+                    disabled={resumingQueue || (data.dailyUsage?.isQuotaExceeded ?? false)}
+                    className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition shadow-sm cursor-pointer ${
+                      data.dailyUsage?.isQuotaExceeded
+                        ? "bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed opacity-70"
+                        : "bg-indigo-600 hover:bg-indigo-500 text-white"
+                    }`}
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${resumingQueue ? "animate-spin" : ""}`} />
+                    <span>{resumingQueue ? "Behandler kø..." : "Fortsett utsending nå (Kjør kø)"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Quota Progress Bar */}
+              <div className="mt-5 pt-4 border-t border-slate-700/80">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1 mb-2">
+                  <span className="text-slate-300">
+                    Sendt siste 24 timer: <strong className="text-white">{data.dailyUsage?.sentInLast24h || 0}</strong> av <strong className="text-white">{data.dailyUsage?.limit || 95}</strong> e-poster
+                  </span>
+                  <span className={`font-semibold ${data.dailyUsage?.isQuotaExceeded ? "text-amber-400" : "text-emerald-400"}`}>
+                    {data.dailyUsage?.isQuotaExceeded
+                      ? "⚠️ Dagsgrense nådd (0 gjenstår i dag) – fortsetter automatisk i morgen"
+                      : `${data.dailyUsage?.remaining ?? 95} e-poster gjenstår i dag`}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-700/60 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-500 rounded-full ${
+                      (data.dailyUsage?.sentInLast24h || 0) >= (data.dailyUsage?.limit || 95)
+                        ? "bg-amber-400"
+                        : "bg-emerald-500"
+                    }`}
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.round(
+                          ((data.dailyUsage?.sentInLast24h || 0) / (data.dailyUsage?.limit || 95)) * 100
+                        )
+                      )}%`,
+                    }}
+                  />
+                </div>
               </div>
             </div>
 

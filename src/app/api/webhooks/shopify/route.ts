@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
 
     const shop = await getOrCreateShop(shopDomain);
     let totalNotified = 0;
+    let totalQueued = 0;
     let deliveryMode: "RESEND_LIVE" | "SIMULATED" = "SIMULATED";
     const allErrors: string[] = [];
 
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
           variant.inventory_quantity
         );
         totalNotified += result.notifiedCount;
+        totalQueued += result.queuedCount;
         deliveryMode = result.mode;
         allErrors.push(...result.errors);
       }
@@ -94,6 +96,7 @@ export async function POST(req: NextRequest) {
       shopDomain: shop.shopDomain,
       restockedVariantsCount: restockedVariants.length,
       notifiedCount: totalNotified,
+      queuedForTomorrowCount: totalQueued,
       deliveryMode,
       errors: allErrors,
     });
