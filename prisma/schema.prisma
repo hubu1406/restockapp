@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Using "sqlite" for instant zero-config local development.
+  // When deploying to Vercel, change provider to "postgresql" and set DATABASE_URL to your Neon/Supabase connection string.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Shop {
+  id                  String   @id @default(cuid())
+  shopDomain          String   @unique
+  shopName            String   @default("PakkLett")
+  accessToken         String?
+  isActive            Boolean  @default(true)
+
+  // Storefront Widget Customization (Norwegian)
+  buttonText          String   @default("Varsle meg når på lager")
+  buttonBgColor       String   @default("#111827")
+  buttonTextColor     String   @default("#ffffff")
+  modalTitle          String   @default("Få beskjed når varen er tilbake på lager")
+  modalSubtitle       String   @default("Skriv inn e-postadressen din nedenfor, så sender vi deg en e-post så snart denne varianten er tilbake på lager.")
+  modalSubmitText     String   @default("Varsle meg")
+  successMessage      String   @default("Du er satt på ventelisten! Vi sender deg en e-post så snart varen er tilbake på lager.")
+  showMarketingOptIn  Boolean  @default(true)
+
+  // Email Notification Customization (Norwegian)
+  emailSenderName     String   @default("PakkLett")
+  emailReplyTo        String?
+  emailSubject        String   @default("Gode nyheter! {{product_title}} er tilbake på lager")
+  emailHeading        String   @default("Tilbake på lager!")
+  emailBodyText       String   @default("Varen du ventet på er endelig tilbake på lager. Sikre deg din før det blir utsolgt igjen!")
+  emailButtonText     String   @default("Kjøp nå")
+  emailAccentColor    String   @default("#4f46e5")
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  subscriptions       WaitlistSubscription[]
+  notificationLogs    NotificationLog[]
+}
+
+model WaitlistSubscription {
+  id                  String   @id @default(cuid())
+  shopId              String
+  shop                Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // Shopify Product & Variant identifiers
+  productId           String
+  variantId           String
+  productTitle        String
+  variantTitle        String   @default("Default Title")
+  productHandle       String   @default("")
+  productUrl          String   @default("")
+  imageUrl            String   @default("")
+  price               String   @default("0.00")
+  sku                 String?
+
+  // Customer Details
+  email               String
+  acceptsMarketing    Boolean  @default(false)
+
+  // Status: PENDING | NOTIFIED | CONVERTED | UNSUBSCRIBED | FAILED
+  status              String   @default("PENDING")
+
+  createdAt           DateTime @default(now())
+  notifiedAt          DateTime?
+  convertedAt         DateTime?
+
+  notificationLogs    NotificationLog[]
+
+  @@index([shopId, variantId, status])
+  @@index([shopId, status])
+  @@index([shopId, email])
+}
+
+model NotificationLog {
+  id                  String   @id @default(cuid())
+  shopId              String
+  shop                Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  subscriptionId      String?
+  subscription        WaitlistSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  recipientEmail      String
+  productTitle        String
+  variantTitle        String
+  subject             String
+  providerMessageId   String?
+  // Status: SENT | SIMULATED | FAILED
+  deliveryStatus      String   @default("SENT")
+  errorMessage        String?
+  htmlPreview         String?
+
+  createdAt           DateTime @default(now())
+
+  @@index([shopId, createdAt])
+}

@@ -1,0 +1,328 @@
+{% comment %}
+  ==============================================================================
+  RestockPulse Back In Stock Widget — Optimized for Shopify Venture (1.0) & 2.0
+  ==============================================================================
+  Installation for Shopify Venture Theme (Online Store 1.0):
+  1. In Shopify Admin -> Online Store -> Themes -> Actions -> Edit code
+  2. Under "Snippets", click "Add a new snippet" named:
+     back-in-stock-widget
+  3. Paste this entire file and click Save.
+  4. Open `layout/theme.liquid` and paste this right before `</body>`:
+     {% if template contains 'product' %}
+       {% include 'back-in-stock-widget' %}
+     {% endif %}
+{% endcomment %}
+
+{% if product %}
+<div
+  id="sw-bis-root"
+  data-app-url="{{ app_url | default: 'https://restockpulse.vercel.app' }}"
+  data-shop-domain="{{ shop.permanent_domain }}"
+  data-product-id="{{ product.id }}"
+  data-product-title="{{ product.title | escape }}"
+  data-product-handle="{{ product.handle }}"
+  data-product-url="{{ shop.url }}{{ product.url }}"
+  data-product-image="https:{{ product.featured_image | img_url: '600x' }}"
+  style="margin-top: 12px; width: 100%; clear: both; display: none;"
+>
+  <button
+    type="button"
+    id="sw-bis-trigger-btn"
+    class="btn btn--full"
+    style="width: 100%; padding: 14px 20px; border-radius: 4px; border: none; background: #111827; color: #ffffff; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; transition: opacity 0.2s ease;"
+  >
+    Varsle meg når på lager
+  </button>
+</div>
+
+<!-- Back in Stock Popup Modal -->
+<div
+  id="sw-bis-modal-backdrop"
+  style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(17, 24, 39, 0.6); z-index: 999999; align-items: center; justify-content: center; padding: 16px;"
+>
+  <div
+    style="background: #ffffff; width: 100%; max-width: 430px; border-radius: 8px; padding: 28px 24px; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.22); font-family: inherit; text-align: left;"
+  >
+    <button
+      type="button"
+      id="sw-bis-close-btn"
+      aria-label="Lukk vindu"
+      style="position: absolute; top: 12px; right: 14px; background: transparent; border: none; font-size: 24px; line-height: 1; color: #6b7280; cursor: pointer; padding: 4px;"
+    >
+      &times;
+    </button>
+
+    <h3 id="sw-bis-modal-title" style="margin: 0 0 8px; font-size: 20px; font-weight: 700; color: #111827; text-transform: none; letter-spacing: normal;">
+      Få beskjed når varen er tilbake på lager
+    </h3>
+    <p id="sw-bis-modal-subtitle" style="margin: 0 0 16px; font-size: 14px; color: #4b5563; line-height: 1.5;">
+      Skriv inn e-postadressen din nedenfor, så sender vi deg en e-post så snart denne varianten er tilbake på lager.
+    </p>
+
+    <div
+      id="sw-bis-variant-badge"
+      style="background: #f3f4f6; padding: 10px 12px; border-radius: 6px; font-size: 13px; color: #1f2937; margin-bottom: 16px; font-weight: 600;"
+    ></div>
+
+    <form id="sw-bis-form" style="margin: 0;">
+      <input
+        type="email"
+        id="sw-bis-email-input"
+        required
+        placeholder="Skriv inn din e-postadresse..."
+        style="width: 100%; box-sizing: border-box; padding: 12px 14px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; margin-bottom: 12px; background: #fff; color: #111827;"
+      />
+      <label
+        id="sw-bis-optin-wrapper"
+        style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #4b5563; margin-bottom: 16px; cursor: pointer;"
+      >
+        <input type="checkbox" id="sw-bis-optin-checkbox" style="margin: 0;" />
+        <span>Meld meg også på nyhetsbrev og eksklusive tilbud</span>
+      </label>
+      <button
+        type="submit"
+        id="sw-bis-submit-btn"
+        style="width: 100%; padding: 13px 18px; border: none; border-radius: 6px; background: #111827; color: #ffffff; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer;"
+      >
+        Varsle meg
+      </button>
+    </form>
+
+    <div
+      id="sw-bis-feedback"
+      style="display: none; margin-top: 14px; padding: 12px; border-radius: 6px; font-size: 14px; text-align: center;"
+    ></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var productVariants = {{ product.variants | json }};
+    var root = document.getElementById("sw-bis-root");
+    if (!root || !productVariants || !productVariants.length) return;
+
+    var appUrl = (root.getAttribute("data-app-url") || "https://restockpulse.vercel.app").replace(/\/$/, "");
+    var shopDomain = root.getAttribute("data-shop-domain");
+    var productId = root.getAttribute("data-product-id");
+    var productTitle = root.getAttribute("data-product-title");
+    var productHandle = root.getAttribute("data-product-handle");
+    var productUrl = root.getAttribute("data-product-url");
+    var productImage = root.getAttribute("data-product-image");
+
+    var triggerBtn = document.getElementById("sw-bis-trigger-btn");
+    var modalBackdrop = document.getElementById("sw-bis-modal-backdrop");
+    var closeBtn = document.getElementById("sw-bis-close-btn");
+    var form = document.getElementById("sw-bis-form");
+    var emailInput = document.getElementById("sw-bis-email-input");
+    var optInCheckbox = document.getElementById("sw-bis-optin-checkbox");
+    var optInWrapper = document.getElementById("sw-bis-optin-wrapper");
+    var submitBtn = document.getElementById("sw-bis-submit-btn");
+    var feedback = document.getElementById("sw-bis-feedback");
+    var variantBadge = document.getElementById("sw-bis-variant-badge");
+    var modalTitle = document.getElementById("sw-bis-modal-title");
+    var modalSubtitle = document.getElementById("sw-bis-modal-subtitle");
+
+    var currentVariant = {{ product.selected_or_first_available_variant | json }};
+
+    // Place the button cleanly inside Venture's product form right below the AddToCart / Sold Out button
+    function mountWidgetInVenture() {
+      var ventureAddToCartBtn =
+        document.getElementById("AddToCart-product-template") ||
+        document.getElementById("AddToCart") ||
+        document.querySelector('form[action*="/cart/add"] [name="add"]') ||
+        document.querySelector('form[action*="/cart/add"] button[type="submit"]');
+
+      if (ventureAddToCartBtn && ventureAddToCartBtn.parentNode) {
+        ventureAddToCartBtn.parentNode.insertBefore(root, ventureAddToCartBtn.nextSibling);
+        return;
+      }
+
+      var productForm =
+        document.getElementById("AddToCartForm-product-template") ||
+        document.querySelector('form[action*="/cart/add"]');
+      if (productForm && productForm.parentNode) {
+        productForm.parentNode.insertBefore(root, productForm.nextSibling);
+      }
+    }
+
+    mountWidgetInVenture();
+
+    // Load live widget customization from Vercel backend
+    fetch(appUrl + "/api/subscribe?shop=" + encodeURIComponent(shopDomain))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.widget) return;
+        var w = data.widget;
+        triggerBtn.textContent = w.buttonText;
+        triggerBtn.style.backgroundColor = w.buttonBgColor;
+        triggerBtn.style.color = w.buttonTextColor;
+        submitBtn.textContent = w.modalSubmitText;
+        submitBtn.style.backgroundColor = w.buttonBgColor;
+        submitBtn.style.color = w.buttonTextColor;
+        modalTitle.textContent = w.modalTitle;
+        modalSubtitle.textContent = w.modalSubtitle;
+        optInWrapper.style.display = w.showMarketingOptIn ? "flex" : "none";
+      })
+      .catch(function () {});
+
+    // Detect active variant in Venture (via master select[name="id"], URL ?variant=, or option selectors)
+    function detectActiveVariant() {
+      // 1. Check URL ?variant= parameter first if present
+      var urlParams = new URLSearchParams(window.location.search);
+      var variantFromUrl = urlParams.get("variant");
+
+      // 2. Check Venture's master <select name="id" id="ProductSelect-product-template">
+      var masterSelect =
+        document.getElementById("ProductSelect-product-template") ||
+        document.querySelector('form[action*="/cart/add"] [name="id"]');
+      var variantId = (masterSelect && masterSelect.value) || variantFromUrl;
+
+      var matched = null;
+      if (variantId) {
+        for (var i = 0; i < productVariants.length; i++) {
+          if (String(productVariants[i].id) === String(variantId)) {
+            matched = productVariants[i];
+            break;
+          }
+        }
+      }
+
+      // 3. Fallback for Venture `.single-option-selector` dropdowns before masterSelect updates
+      if (!matched) {
+        var optionSelectors = document.querySelectorAll(".single-option-selector");
+        if (optionSelectors.length > 0) {
+          var selectedOptions = [];
+          for (var j = 0; j < optionSelectors.length; j++) {
+            selectedOptions.push(optionSelectors[j].value);
+          }
+          for (var k = 0; k < productVariants.length; k++) {
+            var v = productVariants[k];
+            var allMatch = true;
+            for (var m = 0; m < selectedOptions.length; m++) {
+              if (v.options && v.options[m] !== selectedOptions[m]) {
+                allMatch = false;
+                break;
+              }
+            }
+            if (allMatch) {
+              matched = v;
+              break;
+            }
+          }
+        }
+      }
+
+      if (matched) {
+        currentVariant = matched;
+      }
+
+      if (currentVariant && !currentVariant.available) {
+        root.style.display = "block";
+        var vTitle =
+          currentVariant.title && currentVariant.title !== "Default Title"
+            ? " — " + currentVariant.title
+            : "";
+        variantBadge.textContent = productTitle + vTitle;
+      } else {
+        root.style.display = "none";
+      }
+    }
+
+    // Initial check
+    detectActiveVariant();
+
+    // Listen to Venture's `.single-option-selector` and form changes
+    document.addEventListener("change", function (e) {
+      var target = e.target;
+      if (!target) return;
+      if (
+        target.name === "id" ||
+        (target.classList && target.classList.contains("single-option-selector")) ||
+        (target.closest && target.closest('form[action*="/cart/add"]'))
+      ) {
+        // Delay slightly so Venture's theme.js updates #ProductSelect-product-template first
+        setTimeout(detectActiveVariant, 30);
+        setTimeout(detectActiveVariant, 150);
+      }
+    });
+
+    // Also observe Venture's #AddToCart button disabled/text state & URL changes
+    var addToCartBtn =
+      document.getElementById("AddToCart-product-template") ||
+      document.querySelector('form[action*="/cart/add"] [name="add"]');
+    if (addToCartBtn && window.MutationObserver) {
+      new MutationObserver(function () {
+        detectActiveVariant();
+      }).observe(addToCartBtn, {
+        attributes: true,
+        childList: true,
+        subtree: true,
+      });
+    }
+
+    triggerBtn.addEventListener("click", function () {
+      feedback.style.display = "none";
+      form.style.display = "block";
+      modalBackdrop.style.display = "flex";
+      emailInput.focus();
+    });
+
+    closeBtn.addEventListener("click", function () {
+      modalBackdrop.style.display = "none";
+    });
+
+    modalBackdrop.addEventListener("click", function (e) {
+      if (e.target === modalBackdrop) modalBackdrop.style.display = "none";
+    });
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (!currentVariant) return;
+      submitBtn.disabled = true;
+      var originalText = submitBtn.textContent;
+      submitBtn.textContent = "Registrerer...";
+
+      fetch(appUrl + "/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shopDomain: shopDomain,
+          email: emailInput.value,
+          productId: productId,
+          variantId: currentVariant.id,
+          productTitle: productTitle,
+          variantTitle: currentVariant.title,
+          productHandle: productHandle,
+          productUrl: productUrl + "?variant=" + currentVariant.id,
+          imageUrl: productImage,
+          price: (currentVariant.price / 100).toFixed(2),
+          sku: currentVariant.sku || "",
+          acceptsMarketing: optInCheckbox.checked,
+        }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+          if (res.ok) {
+            form.style.display = "none";
+            feedback.style.display = "block";
+            feedback.style.background = "#ecfdf5";
+            feedback.style.color = "#065f46";
+            feedback.textContent = res.message || "Du er satt på ventelisten!";
+            emailInput.value = "";
+          } else {
+            feedback.style.display = "block";
+            feedback.style.background = "#fef2f2";
+            feedback.style.color = "#991b1b";
+            feedback.textContent = res.error || "Noe gikk galt. Prøv igjen.";
+          }
+        })
+        .catch(function () {
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
+        });
+    });
+  })();
+</script>
+{% endif %}
