@@ -25,7 +25,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <meta name="shopify-api-key" content={apiKey} />
-        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" async />
+        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
       </head>
       <body className="antialiased min-h-screen bg-slate-50 text-slate-900">
         {children}

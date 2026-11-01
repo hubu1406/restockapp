@@ -106,7 +106,9 @@ export function verifyShopifySessionToken(
     destUrl.includes(allowedShop) ||
     issUrl.includes(allowedShop) ||
     destUrl.includes("pakklett.no") ||
-    issUrl.includes("pakklett.no");
+    issUrl.includes("pakklett.no") ||
+    destUrl.includes("muskox") ||
+    issUrl.includes("muskox");
 
   if (!isStoreAuthorized) {
     return {

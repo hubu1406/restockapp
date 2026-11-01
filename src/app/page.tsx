@@ -174,15 +174,27 @@ export default function BackInStockDashboard() {
 
   // Shopify App Bridge Auth State
   const [unauthorized, setUnauthorized] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isInsideShopify, setIsInsideShopify] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const getAuthHeaders = async (): Promise<Record<string, string>> => {
-    if (typeof window !== "undefined") {
-      const anyWindow = window as unknown as { shopify?: { idToken?: () => Promise<string> } };
+  const getAuthHeaders = async (maxAttempts = 12): Promise<Record<string, string>> => {
+    if (typeof window === "undefined") return {};
+
+    const inShopify =
+      window.self !== window.top ||
+      window.location.search.includes("shop=") ||
+      window.location.search.includes("host=");
+
+    const anyWindow = window as unknown as { shopify?: { idToken?: () => Promise<string> } };
+
+    // If inside Shopify Admin, poll until App Bridge is loaded (up to 2.4s)
+    const attempts = inShopify ? maxAttempts : 1;
+    for (let i = 0; i < attempts; i++) {
       if (anyWindow.shopify?.idToken) {
         try {
           const token = await anyWindow.shopify.idToken();
@@ -190,8 +202,11 @@ export default function BackInStockDashboard() {
             return { Authorization: `Bearer ${token}` };
           }
         } catch (err) {
-          console.warn("Shopify App Bridge idToken retrieval error:", err);
+          console.warn(`[RestockPulse] idToken attempt ${i + 1} failed:`, err);
         }
+      }
+      if (inShopify && i < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
       }
     }
     return {};
@@ -199,12 +214,22 @@ export default function BackInStockDashboard() {
 
   const fetchDashboard = useCallback(async () => {
     try {
+      setLoading(true);
+      const inShopify =
+        typeof window !== "undefined" &&
+        (window.self !== window.top ||
+          window.location.search.includes("shop=") ||
+          window.location.search.includes("host="));
+      setIsInsideShopify(Boolean(inShopify));
+
       const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/dashboard", {
         headers: { ...authHeaders },
       });
 
       if (res.status === 401) {
+        const errJson = await res.json().catch(() => ({}));
+        setAuthError(errJson.error || "401 Unauthorized");
         setUnauthorized(true);
         return;
       }
@@ -214,11 +239,15 @@ export default function BackInStockDashboard() {
         setData(json);
         setFormSettings((prev) => prev ?? json.shop);
         setUnauthorized(false);
+        setAuthError(null);
       } else {
         setUnauthorized(true);
+        setAuthError(json.error || "Kunne ikke hente dashbordet.");
       }
     } catch (e) {
       console.error("Dashboard fetch failed:", e);
+      setUnauthorized(true);
+      setAuthError("Nettverksfeil ved lasting av dashbord.");
     } finally {
       setLoading(false);
     }
@@ -390,24 +419,35 @@ export default function BackInStockDashboard() {
           </span>
 
           <h1 className="text-2xl font-extrabold text-slate-900 mb-2">
-            Beskyttet dashbord
+            {isInsideShopify ? "Autentiseringsfeil" : "Beskyttet dashbord"}
           </h1>
 
           <p className="text-sm text-slate-600 leading-relaxed mb-6">
-            RestockPulse inneholder sensitive kundelister og e-postinnstillinger for{" "}
-            <strong>pakklett.no</strong>. Dette dashbordet er sikret og kan kun åpnes fra
-            innsiden av Shopify Admin.
+            {isInsideShopify
+              ? authError ||
+                "Venter på autorisasjon fra Shopify. Dersom du nettopp la til miljøvariablene i Vercel, må prosjektet bygges på nytt."
+              : "RestockPulse inneholder sensitive kundelister og e-postinnstillinger for pakklett.no. Dette dashbordet er sikret og kan kun åpnes fra innsiden av Shopify Admin."}
           </p>
 
-          <a
-            href={shopAdminUrl}
-            target="_top"
-            rel="noopener noreferrer"
-            className="w-full inline-flex items-center justify-center gap-2 bg-[#2D2A38] hover:bg-[#3D384D] text-white font-bold py-3.5 px-6 rounded-xl transition duration-150 shadow-md hover:shadow-lg"
-          >
-            <span>Åpne i Shopify Admin</span>
-            <ExternalLink className="w-4 h-4" />
-          </a>
+          {isInsideShopify ? (
+            <button
+              onClick={() => fetchDashboard()}
+              className="w-full inline-flex items-center justify-center gap-2 bg-[#2D2A38] hover:bg-[#3D384D] text-white font-bold py-3.5 px-6 rounded-xl transition duration-150 shadow-md hover:shadow-lg cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Prøv igjen</span>
+            </button>
+          ) : (
+            <a
+              href={shopAdminUrl}
+              target="_top"
+              rel="noopener noreferrer"
+              className="w-full inline-flex items-center justify-center gap-2 bg-[#2D2A38] hover:bg-[#3D384D] text-white font-bold py-3.5 px-6 rounded-xl transition duration-150 shadow-md hover:shadow-lg"
+            >
+              <span>Åpne i Shopify Admin</span>
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          )}
 
           <div className="mt-6 pt-5 border-t border-slate-100">
             <p className="text-xs text-slate-400">
