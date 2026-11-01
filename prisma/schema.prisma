@@ -18,7 +18,7 @@ model Shop {
 
   // Storefront Widget Customization (Norwegian)
   buttonText          String   @default("Varsle meg når på lager")
-  buttonBgColor       String   @default("#111827")
+  buttonBgColor       String   @default("#2D2A38")
   buttonTextColor     String   @default("#ffffff")
   modalTitle          String   @default("Få beskjed når varen er tilbake på lager")
   modalSubtitle       String   @default("Skriv inn e-postadressen din nedenfor, så sender vi deg en e-post så snart denne varianten er tilbake på lager.")
