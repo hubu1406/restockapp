@@ -106,26 +106,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const shop = await getOrCreateShop(shopDomain);
+    // Fast-path exit BEFORE touching Neon Postgres if inventory dropped to 0 or below
+    if (
+      (topic.includes("inventory_levels") || typeof payload.inventory_item_id !== "undefined") &&
+      typeof payload.available === "number" &&
+      payload.available <= 0
+    ) {
+      return NextResponse.json({
+        ok: true,
+        message: "Inventory level is 0 or negative; skipping DB lookup.",
+        notifiedCount: 0,
+      });
+    }
+
     const candidateVariantIds = new Set<string>();
+    const hasVariantsPayload = Array.isArray(payload.variants) && payload.variants.length > 0;
 
     // Strategy 1: Check variants in `products/update` payload
-    if (Array.isArray(payload.variants) && payload.variants.length > 0) {
-      for (const v of payload.variants) {
+    if (hasVariantsPayload) {
+      for (const v of payload.variants!) {
         if (typeof v.inventory_quantity === "number" && v.inventory_quantity > 0) {
           candidateVariantIds.add(String(v.id));
         }
       }
+      // If this was a product update and none of its variants are in stock, exit without waking Neon
+      if (candidateVariantIds.size === 0) {
+        return NextResponse.json({
+          ok: true,
+          message: "No variants with positive stock in product update; skipping DB lookup.",
+          notifiedCount: 0,
+        });
+      }
     }
 
-    // Strategy 2: If `inventory_levels/update` or positive stock change without variant list,
-    // fetch live store catalog to identify all currently in-stock variants
+    // Strategy 2: If `inventory_levels/update` (no variant list in payload),
+    // fetch live store catalog to identify currently in-stock variants BEFORE waking Neon
+    const normalizedShopDomain =
+      shopDomain.trim().toLowerCase() === "muskox.myshopify.com"
+        ? "pakklett.no"
+        : shopDomain.trim().toLowerCase();
+
     if (
-      candidateVariantIds.size === 0 ||
-      topic.includes("inventory_levels") ||
-      typeof payload.inventory_item_id !== "undefined"
+      !hasVariantsPayload &&
+      (topic.includes("inventory_levels") || typeof payload.inventory_item_id !== "undefined")
     ) {
-      const inStockStoreVariants = await getInStockVariantIdsFromStore(shop.shopDomain);
+      const inStockStoreVariants = await getInStockVariantIdsFromStore(normalizedShopDomain);
       for (const vid of inStockStoreVariants) {
         candidateVariantIds.add(vid);
       }
@@ -138,6 +163,8 @@ export async function POST(req: NextRequest) {
         notifiedCount: 0,
       });
     }
+
+    const shop = await getOrCreateShop(shopDomain);
 
     // Find pending subscribers matching any of the candidate restocked variants
     const pendingSubs = await prisma.waitlistSubscription.findMany({

@@ -7,6 +7,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, X-Shop-Domain",
 };
 
+const cachedCorsHeaders = {
+  ...corsHeaders,
+  // Cache on browser for 1 hour, on Vercel Edge CDN for 24 hours, serve stale up to 7 days
+  // Prevents product page traffic & bots from waking up Neon Postgres
+  "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+  "CDN-Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800",
+  "Vercel-CDN-Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800",
+};
+
+// In-memory fallback cache per warm serverless instance (6 hours)
+const widgetConfigCache = new Map<
+  string,
+  { payload: Record<string, unknown>; expiresAt: number }
+>();
+const MEMORY_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders });
 }
@@ -14,6 +30,7 @@ export async function OPTIONS() {
 /**
  * GET /api/subscribe?shop=my-shop.myshopify.com
  * Returns the public storefront widget appearance/copy settings for the given shop.
+ * Aggressively cached at Vercel Edge CDN so storefront traffic does not wake up Neon Postgres.
  */
 export async function GET(req: NextRequest) {
   try {
@@ -22,24 +39,33 @@ export async function GET(req: NextRequest) {
       req.headers.get("x-shop-domain") ||
       undefined;
 
-    const shop = await getOrCreateShop(shopDomain);
+    const cacheKey = (shopDomain || "default").trim().toLowerCase();
+    const cached = widgetConfigCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json(cached.payload, { headers: cachedCorsHeaders });
+    }
 
-    return NextResponse.json(
-      {
-        shopDomain: shop.shopDomain,
-        widget: {
-          buttonText: shop.buttonText,
-          buttonBgColor: shop.buttonBgColor,
-          buttonTextColor: shop.buttonTextColor,
-          modalTitle: shop.modalTitle,
-          modalSubtitle: shop.modalSubtitle,
-          modalSubmitText: shop.modalSubmitText,
-          successMessage: shop.successMessage,
-          showMarketingOptIn: shop.showMarketingOptIn,
-        },
+    const shop = await getOrCreateShop(shopDomain);
+    const payload = {
+      shopDomain: shop.shopDomain,
+      widget: {
+        buttonText: shop.buttonText,
+        buttonBgColor: shop.buttonBgColor,
+        buttonTextColor: shop.buttonTextColor,
+        modalTitle: shop.modalTitle,
+        modalSubtitle: shop.modalSubtitle,
+        modalSubmitText: shop.modalSubmitText,
+        successMessage: shop.successMessage,
+        showMarketingOptIn: shop.showMarketingOptIn,
       },
-      { headers: corsHeaders }
-    );
+    };
+
+    widgetConfigCache.set(cacheKey, {
+      payload,
+      expiresAt: Date.now() + MEMORY_CACHE_TTL_MS,
+    });
+
+    return NextResponse.json(payload, { headers: cachedCorsHeaders });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to load widget config" },
